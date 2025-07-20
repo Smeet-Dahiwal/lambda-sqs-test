@@ -1,0 +1,39 @@
+name: Deploy Lambda Function
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write  # For OIDC auth
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::123456789012:role/github-oidc-role
+        aws-region: ap-south-1
+
+    - name: Zip complete repo
+      run: |
+        zip -r function.zip . -x "*.git*" -x "*.github*"  # exclude .git and workflow files
+
+    - name: Upload to S3
+      run: |
+        aws s3 cp function.zip s3://testsmeet/lambda-function/function-${{ github.run_number }}.zip
+
+    - name: Update Lambda function code
+      run: |
+        aws lambda update-function-code \
+          --function-name myLambdaFunction \
+          --s3-bucket testsmeet \
+          --s3-key lambda-function/function-${{ github.run_number }}.zip \
+          --publish
